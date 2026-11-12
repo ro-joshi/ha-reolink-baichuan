@@ -45,7 +45,6 @@ class ReolinkBaichuanCamera(Camera):
 
     _attr_has_entity_name = True
     _attr_supported_features = CameraEntityFeature.STREAM
-    _attr_frontend_stream_type = StreamType.HLS
 
     def __init__(
         self,

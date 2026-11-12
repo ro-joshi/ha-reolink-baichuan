@@ -183,19 +183,31 @@ class MpegTsMuxer:
 
         return bytes(out)
 
+    def mux_psi(self) -> bytes:
+        """Return 2 MPEG-TS packets containing PAT and PMT tables."""
+        return self._packetize_psi(PID_PAT, PAT_SECTION) + self._packetize_psi(PID_PMT, PMT_SECTION)
+
     def mux_video(self, nal_bytes: bytes, pts_90k: int, is_keyframe: bool) -> bytes:
         """Mux an H.264 Annex-B frame into 188-byte MPEG-TS packets."""
         out = bytearray()
         if is_keyframe:
-            out.extend(self._packetize_psi(PID_PAT, PAT_SECTION))
-            out.extend(self._packetize_psi(PID_PMT, PMT_SECTION))
+            out.extend(self.mux_psi())
 
         payload = (
             nal_bytes if nal_bytes.startswith(b"\x00\x00\x00\x01\x09") else H264_AUD_NAL + nal_bytes
         )
-        # Video PES length=0 (unbounded) is standard for H.264 in MPEG-TS
         pes_header = bytes(
-            (0x00, 0x00, 0x01, STREAM_ID_VIDEO, 0x00, 0x00, 0x80, 0x80, 0x05)
+            (
+                0x00,
+                0x00,
+                0x01,
+                STREAM_ID_VIDEO,
+                0x00,
+                0x00,
+                0x80,
+                0x80,
+                0x05,
+            )
         ) + _encode_pts(pts_90k)
         out.extend(
             self._packetize_pes(

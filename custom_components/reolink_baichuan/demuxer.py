@@ -68,27 +68,34 @@ class BcMediaDemuxer:
         self._buf = bytearray()
         self._muxer = MpegTsMuxer()
         self._base_pts_us: int | None = None
-        self._last_video_pts_90k: int = 0
-        self._audio_pts_90k: int = 0
+        self._last_pts_90k: int = 0
+        self._psi_sent: bool = False
 
     def reset(self) -> None:
         """Clear framing buffer and timestamp state."""
         self._buf.clear()
         self._muxer = MpegTsMuxer()
         self._base_pts_us = None
-        self._last_video_pts_90k = 0
-        self._audio_pts_90k = 0
+        self._last_pts_90k = 0
+        self._psi_sent = False
 
-    def _normalize_video_pts(self, pts_us: int) -> int:
+    def _next_video_pts(self, pts_us: int) -> int:
         if self._base_pts_us is None:
             self._base_pts_us = pts_us
         rel_us = max(0, pts_us - self._base_pts_us)
         pts_90k = (rel_us * 9) // 100
-        if pts_90k <= self._last_video_pts_90k and self._last_video_pts_90k > 0:
-            pts_90k = self._last_video_pts_90k + 3000
-        self._last_video_pts_90k = pts_90k
-        if self._audio_pts_90k == 0 or abs(pts_90k - self._audio_pts_90k) > 45000:
-            self._audio_pts_90k = pts_90k
+        # Guarantee strict monotonicity across interleaved audio/video frames
+        if pts_90k <= self._last_pts_90k and self._last_pts_90k > 0:
+            pts_90k = self._last_pts_90k + 90
+        self._last_pts_90k = pts_90k
+        return pts_90k
+
+    def _next_audio_pts(self, adts_bytes: bytes) -> int:
+        # Keep audio PTS strictly >= the most recent packet PTS on the wire
+        pts_90k = self._last_pts_90k
+        # Advance the shared floor slightly (1ms = 90 ticks) so back-to-back audio packets stay monotonic
+        # without pushing the clock ahead of the next hardware video frame
+        self._last_pts_90k += min(900, _adts_duration_90k(adts_bytes))
         return pts_90k
 
     def feed(self, chunk: bytes) -> bytes:
@@ -111,7 +118,13 @@ class BcMediaDemuxer:
                     break
 
                 nal_bytes = bytes(self._buf[header_size : header_size + payload_size])
-                pts_90k = self._normalize_video_pts(pts_us)
+                pts_90k = self._next_video_pts(pts_us)
+                if not self._psi_sent and not is_keyframe:
+                    ts_out.extend(self._muxer.mux_psi())
+                    self._psi_sent = True
+                elif is_keyframe:
+                    self._psi_sent = True
+
                 ts_out.extend(self._muxer.mux_video(nal_bytes, pts_90k, is_keyframe))
                 del self._buf[:total_padded]
 
@@ -121,11 +134,10 @@ class BcMediaDemuxer:
                 if len(self._buf) < total_padded:
                     break
 
-                # Wait until at least the first video keyframe establishes the base clock
                 if self._base_pts_us is not None:
                     adts_bytes = bytes(self._buf[8 : 8 + payload_size])
-                    ts_out.extend(self._muxer.mux_audio(adts_bytes, self._audio_pts_90k))
-                    self._audio_pts_90k += _adts_duration_90k(adts_bytes)
+                    pts_90k = self._next_audio_pts(adts_bytes)
+                    ts_out.extend(self._muxer.mux_audio(adts_bytes, pts_90k))
                 del self._buf[:total_padded]
 
             else:
