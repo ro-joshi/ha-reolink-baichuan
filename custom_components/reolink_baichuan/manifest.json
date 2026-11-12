@@ -1,0 +1,17 @@
+{
+    "domain": "reolink_baichuan",
+    "name": "Reolink Baichuan Native Camera",
+    "codeowners": [
+        "@ro-joshi"
+    ],
+    "config_flow": true,
+    "dependencies": [
+        "stream",
+        "ffmpeg"
+    ],
+    "documentation": "https://github.com/ro-joshi/ha-reolink-baichuan",
+    "iot_class": "local_push",
+    "issue_tracker": "https://github.com/ro-joshi/ha-reolink-baichuan/issues",
+    "requirements": [],
+    "version": "0.1.0"
+}

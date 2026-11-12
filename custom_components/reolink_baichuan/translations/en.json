@@ -1,0 +1,22 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Connect to Reolink Baichuan Camera",
+                "description": "Enter the local IP and Baichuan port (9000) for your Reolink camera.",
+                "data": {
+                    "host": "Host IP",
+                    "username": "Username",
+                    "password": "Password",
+                    "port": "Baichuan TCP Port"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to authenticate over Baichuan port 9000."
+        },
+        "abort": {
+            "already_configured": "This camera is already configured."
+        }
+    }
+}
