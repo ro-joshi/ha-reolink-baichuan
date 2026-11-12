@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from reolink_aio.api import Host
-import voluptuous as vol
 
 from .const import DEFAULT_PORT, DOMAIN
 
@@ -45,10 +46,8 @@ class ReolinkBaichuanConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.error("Baichuan connection failed: %s", err)
                 errors["base"] = "cannot_connect"
             finally:
-                try:
+                with contextlib.suppress(Exception):
                     await host.logout()
-                except Exception:
-                    pass
 
             if not errors:
                 await self.async_set_unique_id(unique_id)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 from reolink_aio.api import Host
@@ -136,7 +137,5 @@ class BaichuanTcpBridge:
         except Exception as err:
             _LOGGER.error("Baichuan stream error (%s): %s", self._stream_xml_name, err)
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 await cam.logout()
-            except Exception:
-                pass
